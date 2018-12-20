@@ -1,5 +1,5 @@
 #IMAGE-NAME: willia4/sftp_volume
-#IMAGE-VERSION: 1.2.0
+#IMAGE-VERSION: 1.3.5
 FROM ubuntu:16.04
 
 EXPOSE 22

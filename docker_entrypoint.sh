@@ -1,5 +1,22 @@
 #!/bin/bash
 
+function echo_debug {
+	if [[ "$SFTP_CONTAINER_DEBUG" == "DEBUG" ]]
+	then
+		echo "$1"
+	fi
+}
+
+# SSH config info will be provided in the _SOURCE volume directories
+# Because some volume providers (like k8s ConfigMap) do not let us do what 
+# we need to with the permissions on these files to make SSH happy, we need
+# to copy this stuff to a new directory. 
+#
+KEY_SOURCE="/volumes/ssh_keys"
+KEY_DEST="/ssh/keys"
+USER_SOURCE="/volumes/user"
+USER_DEST="/ssh/user"
+
 function update_ssh_config {
 	VAR_NAME=$1
 	VAR_DEFAULT=$2
@@ -14,6 +31,8 @@ function update_ssh_config {
 }
 
 if [ "$SFTP_CONTAINER_KEYS" == "CREATE" ]; then
+	echo_debug "Creating keys"
+
 	rm -f /volumes/ssh_keys/ssh_host_rsa_key > /dev/null
 	rm -f /volumes/ssh_keys/ssh_host_dsa_key > /dev/null
 	rm -f /volumes/ssh_keys/ssh_host_ecdsa_key > /dev/null
@@ -30,32 +49,61 @@ if [ "$SFTP_CONTAINER_KEYS" == "CREATE" ]; then
 	ssh-keygen -f /volumes/ssh_keys/ssh_host_ed25519_key -N '' -t ed25519 > /dev/null
 fi
 
-if [ ! -f /volumes/ssh_keys/ssh_host_rsa_key ]; then
+# Copy config volumes to a more permanant home 
+mkdir -p "$KEY_DEST"
+mkdir -p "$USER_DEST"
+
+if [[ -d "$KEY_SOURCE" ]]
+then
+	echo_debug "Copying keys from $KEY_SOURCE to $KEY_DEST"
+	cp -Lrv "$KEY_SOURCE"/* "$KEY_DEST"
+else
+	echo_debug "Directory $KEY_SOURCE does not exist"
+fi
+
+if [[ -d "$USER_SOURCE" ]]
+then
+	echo_debug "Copying files from $USER_SOURCE to $USER_SOURCE"
+	cp -Lrv "$USER_SOURCE"/* "$USER_DEST"
+else
+	echo_debug "Directory $USER_SOURCE does not exist"
+fi
+
+if [[ "$SFTP_CONTAINER_DEBUG" == "DEBUG" ]]
+then
+	echo_debug "Key Files"
+	ls -l "$KEY_DEST"
+
+	echo_debug "User Files"
+	ls -l "$USER_DEST"
+fi
+
+if [ ! -f "$KEY_DEST"/ssh_host_rsa_key ]; then
 	echo "The ssh_host_rsa_key does not exist and should be created. Consider setting SFTP_CONTAINER_KEYS=CREATE. This is an unrecoverable error."
 	exit 2
 fi
 
-if [ ! -f /volumes/ssh_keys/ssh_host_dsa_key ]; then
+if [ ! -f "$KEY_DEST"/ssh_host_dsa_key ]; then
 	echo "The ssh_host_dsa_key does not exist and should be created. Consider setting SFTP_CONTAINER_KEYS=CREATE. This is an unrecoverable error."
 	exit 2
 fi
 
-if [ ! -f /volumes/ssh_keys/ssh_host_ecdsa_key ]; then
+if [ ! -f "$KEY_DEST"/ssh_host_ecdsa_key ]; then
 	echo "The ssh_host_ecdsa_key does not exist and should be created. Consider setting SFTP_CONTAINER_KEYS=CREATE. This is an unrecoverable error."
 	exit 2
 fi
 
-if [ ! -f /volumes/ssh_keys/ssh_host_ed25519_key ]; then
+if [ ! -f "$KEY_DEST"/ssh_host_ed25519_key ]; then
 	echo "The ssh_host_ed25519_key does not exist and should be created. Consider setting SFTP_CONTAINER_KEYS=CREATE. This is an unrecoverable error."
 	exit 2
 fi
 
-if [ ! -f /volumes/user/authorized_keys ]; then
+if [ ! -f "$USER_DEST"/authorized_keys ]; then
 	echo "The authorized_keys file does not exist in /volumes/user so no users will be able to connect. This is an unrecoverable error."
 	exit 3
 fi
 
-if [ ! -s /volumes/user/authorized_keys ]; then
+if [ ! -s "$USER_DEST"/authorized_keys ]; then
 	echo "The authorized_keys file in the /volumes/user volume has no keys so no users will be able to connect. This is an unrecoverable error."
 	exit 3
 fi
@@ -122,14 +170,12 @@ else
 	useradd -s /usr/sbin/nologin -d / -g $SFTP_CONTAINER_GROUP -N -u $SFTP_CONTAINER_USER_ID $SFTP_CONTAINER_USER
 fi
 
-#Fixup permissions on authorized_key file
-mkdir -p /ssh
-cp /volumes/user/authorized_keys /ssh/authorized_keys
+#Fixup permissions on key files 
+chmod -R 400 "$KEY_DEST"
 
-chown $SFTP_CONTAINER_USER:$SFTP_CONTAINER_GROUP /ssh
-chown $SFTP_CONTAINER_USER:$SFTP_CONTAINER_GROUP /ssh/authorized_keys
-chmod 700 /ssh
-chmod 600 /ssh/authorized_keys
+#Fixup permissions on user files 
+chown -R $SFTP_CONTAINER_USER:$SFTP_CONTAINER_GROUP "$USER_DEST"
+chown -R 600 "$USER_DEST"
 
 #Create the PrivSep emptry dir
 mkdir /var/run/sshd

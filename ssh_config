@@ -8,10 +8,10 @@ Port 22
 #ListenAddress 0.0.0.0
 Protocol 2
 # HostKeys for protocol version 2
-HostKey /volumes/ssh_keys/ssh_host_rsa_key
-HostKey /volumes/ssh_keys/ssh_host_dsa_key
-HostKey /volumes/ssh_keys/ssh_host_ecdsa_key
-HostKey /volumes/ssh_keys/ssh_host_ed25519_key
+HostKey /ssh/keys/ssh_host_rsa_key
+HostKey /ssh/keys/ssh_host_dsa_key
+HostKey /ssh/keys/ssh_host_ecdsa_key
+HostKey /ssh/keys/ssh_host_ed25519_key
 
 #Privilege Separation is turned on for security
 UsePrivilegeSeparation yes
@@ -27,11 +27,11 @@ LogLevel INFO
 # Authentication:
 LoginGraceTime 120
 PermitRootLogin no
-StrictModes yes
+StrictModes no
 
 RSAAuthentication yes
 PubkeyAuthentication yes
-AuthorizedKeysFile	/ssh/authorized_keys
+AuthorizedKeysFile	/ssh/user/authorized_keys
 
 # Don't read the user's ~/.rhosts and ~/.shosts files
 IgnoreRhosts yes
